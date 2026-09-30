@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0e0f14" />
+  <title>像素风</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">像素风</div>
+      <div class="sub" id="status">选一张图，按 MARD 221 出图纸</div>
+      <button type="button" class="ghost top-off" id="btnOffline">加到主屏</button>
+    </header>
+
+    <div class="lan hidden" id="lanBanner"></div>
+
+    <div class="stage" id="stage">
+      <canvas id="view"></canvas>
+      <div class="empty" id="empty">
+        <div class="px-mark" aria-hidden="true"></div>
+        <p>点下面「相册」或「拍照」</p>
+        <p class="hint">只用色卡里的颜色，格子上会标 A1、B12 这种色号</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row size-row">
+        <span class="lab">格子</span>
+        <div class="size-edit">
+          <label>宽<input id="gridW" type="number" min="8" max="200" value="32" inputmode="numeric" enterkeyhint="done" /></label>
+          <span class="times">×</span>
+          <label>高<input id="gridH" type="number" min="8" max="200" value="" placeholder="自动" inputmode="numeric" enterkeyhint="done" /></label>
+        </div>
+        <button type="button" class="tog" id="btnCrop">裁剪</button>
+      </div>
+      <div class="row sliders">
+        <label>对比 <span id="conVal">1.10</span>
+          <input id="contrast" type="range" min="80" max="180" value="110" />
+        </label>
+        <label>饱和 <span id="satVal">1.10</span>
+          <input id="saturate" type="range" min="40" max="200" value="110" />
+        </label>
+      </div>
+      <div class="toggles">
+        <button type="button" class="tog" id="btnDither" aria-pressed="false">抖动</button>
+        <button type="button" class="tog on" id="btnLabels" aria-pressed="true">色号</button>
+      </div>
+      <div class="legend-label">用到的色号</div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="bar">
+      <button type="button" class="ghost" id="btnAlbum">相册</button>
+      <button type="button" class="ghost" id="btnShot">拍照</button>
+      <button type="button" class="primary" id="btnSave" disabled>保存</button>
+      <button type="button" class="ghost" id="btnShare" disabled>分享</button>
+    </div>
+  </div>
+
+  <input id="fileAlbum" type="file" accept="image/*" hidden />
+  <input id="fileShot" type="file" accept="image/*" capture="environment" hidden />
+  <div class="crop-layer hidden" id="cropLayer">
+    <div class="crop-head">
+      <span>裁剪画面</span>
+      <button type="button" class="ghost" id="cropCancel">取消</button>
+    </div>
+    <div class="crop-stage" id="cropStage">
+      <canvas id="cropCanvas"></canvas>
+    </div>
+    <div class="chips wrap" id="ratioChips"></div>
+    <button type="button" class="primary crop-done" id="cropDone">用这块</button>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="mard221.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

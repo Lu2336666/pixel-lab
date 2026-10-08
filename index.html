@@ -24,21 +24,6 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="paywall" id="paywall">
-    <div class="pay-card">
-      <div class="pay-mark" aria-hidden="true"></div>
-      <h2>像素风</h2>
-      <p class="pay-lead">一次买断，这台设备终身能用</p>
-      <div class="price">¥2.88</div>
-      <button type="button" class="primary pay-go" id="btnPay">支付宝支付 ¥2.88</button>
-      <p class="pay-note">付完自动解锁。换手机可填终身凭证。</p>
-      <button type="button" class="ghost" id="btnShowRestore">我已付款</button>
-      <div class="restore-box hidden" id="restoreBox">
-        <input id="restoreCode" type="text" inputmode="text" autocapitalize="characters" placeholder="PX-XXXX-XXXXXX" />
-        <button type="button" class="primary" id="btnRestore">解锁</button>
-      </div>
-    </div>
-  </div>
   <div class="app">
     <header class="top">
       <div class="titles">
@@ -111,8 +96,6 @@
     <button type="button" class="primary crop-done" id="cropDone">用这块</button>
   </div>
   <div class="toast" id="toast"></div>
-  <script src="pay-config.js"></script>
-  <script src="pay.js"></script>
   <script src="mard221.js"></script>
   <script src="app.js"></script>
 </body>

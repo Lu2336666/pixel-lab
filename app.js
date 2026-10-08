@@ -413,8 +413,8 @@
         toast('用 Safari 打开本页，点底部分享，再点「添加到主屏幕」');
       });
     }
-    $('btnAlbum').addEventListener('click', () => $('fileAlbum').click());
-    $('btnShot').addEventListener('click', () => $('fileShot').click());
+    $('btnAlbum').addEventListener('click', () => { if (requirePaid()) $('fileAlbum').click(); });
+    $('btnShot').addEventListener('click', () => { if (requirePaid()) $('fileShot').click(); });
     $('fileAlbum').addEventListener('change', onFile);
     $('fileShot').addEventListener('change', onFile);
     $('btnSave').addEventListener('click', savePng);
@@ -423,12 +423,19 @@
     stage.addEventListener('dragover', (e) => { e.preventDefault(); });
     stage.addEventListener('drop', (e) => {
       e.preventDefault();
+      if (!requirePaid()) return;
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       if (f) loadFile(f);
     });
     bindCropPointer();
     bindPageZoomLock();
     bindViewZoom();
+  }
+
+  function requirePaid() {
+    if (window.pixelPaid && window.pixelPaid()) return true;
+    toast('请先付款解锁');
+    return false;
   }
 
   async function onFile(e) {
@@ -438,6 +445,7 @@
   }
 
   async function loadFile(file) {
+    if (!requirePaid()) return;
     if (!file.type || !file.type.startsWith('image/')) {
       toast('请选图片');
       return;
@@ -900,6 +908,7 @@
   }
 
   function savePng() {
+    if (!requirePaid()) return;
     const c = exportCanvas();
     if (!c) return;
     c.toBlob((blob) => {
@@ -909,6 +918,7 @@
   }
 
   async function sharePng() {
+    if (!requirePaid()) return;
     const c = exportCanvas();
     if (!c) return;
     try {
@@ -1031,6 +1041,7 @@
   }
 
   function openCrop() {
+    if (!requirePaid()) return;
     if (!state.source) {
       toast('先选一张图');
       return;

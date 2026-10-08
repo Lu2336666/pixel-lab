@@ -1,9 +1,11 @@
-const CACHE = 'pixel-lab-8';
+const CACHE = 'pixel-lab-9';
 const FILES = [
   './',
   './index.html',
   './style.css',
   './app.js',
+  './pay.js',
+  './pay-config.js',
   './mard221.js',
   './icon.svg',
   './icon-180.png',

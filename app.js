@@ -213,17 +213,40 @@
     return { x: t.clientX - r.left, y: t.clientY - r.top };
   }
 
+  function onStage(t, stage) {
+    const r = stage.getBoundingClientRect();
+    return t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom;
+  }
+
+  function bindPageZoomLock() {
+    const stop = (e) => e.preventDefault();
+    window.addEventListener('gesturestart', stop, { passive: false, capture: true });
+    window.addEventListener('gesturechange', stop, { passive: false, capture: true });
+    window.addEventListener('gestureend', stop, { passive: false, capture: true });
+    const block = (e) => {
+      if (e.touches && e.touches.length > 1) e.preventDefault();
+      if (typeof e.scale === 'number' && e.scale !== 1) e.preventDefault();
+    };
+    window.addEventListener('touchstart', block, { passive: false, capture: true });
+    window.addEventListener('touchmove', block, { passive: false, capture: true });
+  }
+
   function bindViewZoom() {
     const stage = $('stage');
     let gesture = null;
     let lastTap = 0;
     let tapPt = null;
 
-    stage.addEventListener('touchstart', (e) => {
-      if (!state.grid) return;
-      if (e.touches.length === 2) {
+    const onStart = (e) => {
+      if (!e.touches || !state.grid) return;
+      if (e.touches.length >= 2) {
+        e.preventDefault();
         const a = stagePt(e.touches[0], stage);
         const b = stagePt(e.touches[1], stage);
+        if (!onStage(e.touches[0], stage) && !onStage(e.touches[1], stage)) {
+          gesture = { kind: 'block' };
+          return;
+        }
         gesture = {
           kind: 'pinch',
           dist: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
@@ -233,17 +256,25 @@
           y: viewPan.y,
         };
         lastTap = 0;
-      } else if (e.touches.length === 1) {
+        return;
+      }
+      if (e.touches.length === 1 && onStage(e.touches[0], stage)) {
         const a = stagePt(e.touches[0], stage);
         gesture = { kind: 'pan', x: a.x, y: a.y, ox: viewPan.x, oy: viewPan.y, moved: false };
         tapPt = a;
       }
-    }, { passive: true });
+    };
 
-    stage.addEventListener('touchmove', (e) => {
+    const onMove = (e) => {
+      if (!e.touches) return;
+      if (e.touches.length > 1) e.preventDefault();
       if (!gesture || !state.grid) return;
-      e.preventDefault();
+      if (gesture.kind === 'block') {
+        e.preventDefault();
+        return;
+      }
       if (gesture.kind === 'pinch' && e.touches.length >= 2) {
+        e.preventDefault();
         const a = stagePt(e.touches[0], stage);
         const b = stagePt(e.touches[1], stage);
         const dist = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
@@ -259,6 +290,7 @@
         viewPan.user = true;
         applyViewTransform();
       } else if (gesture.kind === 'pan' && e.touches.length === 1) {
+        e.preventDefault();
         const a = stagePt(e.touches[0], stage);
         const dx = a.x - gesture.x;
         const dy = a.y - gesture.y;
@@ -268,31 +300,34 @@
         viewPan.user = true;
         applyViewTransform();
       }
-    }, { passive: false });
+    };
 
-    stage.addEventListener('touchend', (e) => {
+    const onEnd = (e) => {
       if (!state.grid) { gesture = null; return; }
-      if (e.touches.length === 1) {
+      if (e.touches && e.touches.length >= 2) return;
+      if (e.touches && e.touches.length === 1) {
         const a = stagePt(e.touches[0], stage);
         gesture = { kind: 'pan', x: a.x, y: a.y, ox: viewPan.x, oy: viewPan.y, moved: true };
         return;
       }
-      if (e.touches.length === 0) {
-        const wasPan = gesture && gesture.kind === 'pan' && !gesture.moved;
-        gesture = null;
-        if (!wasPan || !tapPt) return;
-        const now = Date.now();
-        if (now - lastTap < 300) {
-          if (viewPan.scale > fitScale() * 1.12) fitView();
-          else zoomAt(tapPt.x, tapPt.y, fitScale() * 3);
-          lastTap = 0;
-        } else {
-          lastTap = now;
-        }
+      const wasPan = gesture && gesture.kind === 'pan' && !gesture.moved;
+      gesture = null;
+      if (!wasPan || !tapPt) return;
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        if (viewPan.scale > fitScale() * 1.12) fitView();
+        else zoomAt(tapPt.x, tapPt.y, fitScale() * 3);
+        lastTap = 0;
+      } else {
+        lastTap = now;
       }
-    }, { passive: true });
+    };
 
-    stage.addEventListener('touchcancel', () => { gesture = null; });
+    const opts = { passive: false, capture: true };
+    window.addEventListener('touchstart', onStart, opts);
+    window.addEventListener('touchmove', onMove, opts);
+    window.addEventListener('touchend', onEnd, opts);
+    window.addEventListener('touchcancel', () => { gesture = null; }, opts);
 
     let mouse = null;
     stage.addEventListener('pointerdown', (e) => {
@@ -392,6 +427,7 @@
       if (f) loadFile(f);
     });
     bindCropPointer();
+    bindPageZoomLock();
     bindViewZoom();
   }
 

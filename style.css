@@ -16,7 +16,12 @@ html, body {
   color: var(--ink);
   font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
   overflow: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
 }
+.panel { touch-action: pan-y; }
+.sliders input[type="range"] { touch-action: pan-x; }
 button, input { font-family: inherit; }
 .app {
   height: 100%;
@@ -27,6 +32,7 @@ button, input { font-family: inherit; }
   gap: 10px;
   max-width: 560px;
   margin: 0 auto;
+  touch-action: pan-y;
 }
 .top { display: flex; align-items: center; gap: 10px; }
 .top-off {
@@ -68,6 +74,7 @@ html[data-offline] .top-off { display: none; }
   justify-content: flex-start;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
 }
 #view {
   image-rendering: auto;
@@ -80,7 +87,6 @@ html[data-offline] .top-off { display: none; }
   pointer-events: none;
 }
 .stage.has-img {
-  touch-action: none;
   cursor: grab;
 }
 .stage.has-img.grabbing { cursor: grabbing; }

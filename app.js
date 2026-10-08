@@ -998,7 +998,7 @@
     canvas.style.height = `${rh}px`;
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#0e0f14';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, rw, rh);
     const L = imageLayout(rw, rh);
     ctx.drawImage(src, L.left, L.top, L.dw, L.dh);
@@ -1019,12 +1019,14 @@
     ctx.moveTo(r.x, r.y + r.h / 3); ctx.lineTo(r.x + r.w, r.y + r.h / 3);
     ctx.moveTo(r.x, r.y + r.h * 2 / 3); ctx.lineTo(r.x + r.w, r.y + r.h * 2 / 3);
     ctx.stroke();
-    ctx.strokeStyle = '#3dff8a';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.strokeRect(r.x, r.y, r.w, r.h);
-    ctx.fillStyle = '#3dff8a';
+    ctx.fillStyle = '#ffffff';
     Object.values(handlePts(r)).forEach(([x, y]) => {
-      ctx.fillRect(x - 7, y - 7, 14, 14);
+      ctx.beginPath();
+      ctx.rect(x - 6, y - 6, 12, 12);
+      ctx.fill();
     });
   }
 

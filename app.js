@@ -791,31 +791,112 @@
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   }
 
-  function offerPng(blob) {
-    const name = `拼豆-${state.w}x${state.h}.png`;
-    const file = new File([blob], name, { type: 'image/png' });
+  function downloadBlob(blob, name, msg) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    if (msg) toast(msg);
+  }
+
+  function offerFile(blob, name, mime, doneMsg) {
+    const file = new File([blob], name, { type: mime });
     const share = async () => {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: '拼豆图纸' });
-        return true;
+        return 'shared';
       }
-      return false;
-    };
-    const download = () => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-      toast('已保存带色号的图纸');
+      return 'none';
     };
     return share().catch((err) => {
-      if (err && err.name === 'AbortError') return true;
-      return false;
+      if (err && err.name === 'AbortError') return 'abort';
+      return 'none';
     }).then((ok) => {
-      if (ok) return;
-      download();
+      if (ok === 'abort') return;
+      if (ok === 'shared') {
+        if (doneMsg) toast(doneMsg);
+        return;
+      }
+      downloadBlob(blob, name, doneMsg || '已保存带色号的图纸');
     });
+  }
+
+  function encPdf(s) {
+    return new TextEncoder().encode(s);
+  }
+
+  function concatBytes(chunks) {
+    const n = chunks.reduce((s, x) => s + x.length, 0);
+    const out = new Uint8Array(n);
+    let o = 0;
+    for (const x of chunks) {
+      out.set(x, o);
+      o += x.length;
+    }
+    return out;
+  }
+
+  async function deflateZlib(bytes) {
+    const cs = new CompressionStream('deflate');
+    const writer = cs.writable.getWriter();
+    await writer.write(bytes);
+    await writer.close();
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+  }
+
+  async function canvasToPdfBlob(canvas) {
+    const w = canvas.width;
+    const h = canvas.height;
+    const rgba = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const rgb = new Uint8Array(w * h * 3);
+    for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
+      rgb[j] = rgba[i];
+      rgb[j + 1] = rgba[i + 1];
+      rgb[j + 2] = rgba[i + 2];
+    }
+    let raw = rgb;
+    let filter = '';
+    try {
+      raw = await deflateZlib(rgb);
+      filter = '/Filter /FlateDecode ';
+    } catch (_) {
+      raw = rgb;
+    }
+    const maxW = 595;
+    const maxH = 842;
+    const s = Math.min(maxW / w, maxH / h);
+    const pw = Math.max(1, w * s);
+    const ph = Math.max(1, h * s);
+    const content = `q ${pw.toFixed(2)} 0 0 ${(-ph).toFixed(2)} 0 ${ph.toFixed(2)} cm /Im0 Do Q\n`;
+    const objs = [];
+    objs[1] = encPdf('1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n');
+    objs[2] = encPdf('2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n');
+    objs[3] = encPdf(`3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw.toFixed(2)} ${ph.toFixed(2)}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >> endobj\n`);
+    objs[4] = concatBytes([
+      encPdf(`4 0 obj << /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 ${filter}/Length ${raw.length} >> stream\n`),
+      raw,
+      encPdf('\nendstream endobj\n'),
+    ]);
+    objs[5] = encPdf(`5 0 obj << /Length ${content.length} >> stream\n${content}endstream endobj\n`);
+    const header = encPdf('%PDF-1.4\n%\x80\x80\x80\x80\n');
+    const chunks = [header];
+    const offsets = [0];
+    let pos = header.length;
+    for (let i = 1; i <= 5; i++) {
+      offsets[i] = pos;
+      chunks.push(objs[i]);
+      pos += objs[i].length;
+    }
+    let xref = `xref\n0 6\n0000000000 65535 f \n`;
+    for (let i = 1; i <= 5; i++) {
+      xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+    }
+    const xrefBytes = encPdf(xref);
+    const startxref = pos;
+    chunks.push(xrefBytes);
+    chunks.push(encPdf(`trailer << /Size 6 /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`));
+    return new Blob([concatBytes(chunks)], { type: 'application/pdf' });
   }
 
   function savePng() {
@@ -823,17 +904,29 @@
     if (!c) return;
     c.toBlob((blob) => {
       if (!blob) { toast('保存失败'); return; }
-      offerPng(blob);
+      offerFile(blob, `拼豆-${state.w}x${state.h}.png`, 'image/png', '已保存。发微信请用「分享」，不要当图片发');
     }, 'image/png');
   }
 
   async function sharePng() {
     const c = exportCanvas();
     if (!c) return;
-    c.toBlob((blob) => {
-      if (!blob) return;
-      offerPng(blob);
-    }, 'image/png');
+    try {
+      const pdf = await canvasToPdfBlob(c);
+      await offerFile(
+        pdf,
+        `拼豆-${state.w}x${state.h}.pdf`,
+        'application/pdf',
+        '已用文件分享，微信不会压糊'
+      );
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      console.error(err);
+      c.toBlob((blob) => {
+        if (!blob) return;
+        offerFile(blob, `拼豆-${state.w}x${state.h}.png`, 'application/octet-stream', '已分享文件');
+      }, 'image/png');
+    }
   }
 
   function showLan() {

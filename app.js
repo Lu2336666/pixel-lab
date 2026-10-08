@@ -42,6 +42,7 @@
   let timer = 0;
   let cropDrag = null;
   let cropDraft = null;
+  const viewPan = { scale: 1, x: 0, y: 0, user: false };
 
   function toast(msg) {
     const el = $('toast');
@@ -142,16 +143,185 @@
 
   function readGrid() {
     const w = clampInt($('gridW').value, 8, 200, 32);
-    $('gridW').value = String(w);
     state.size = w;
-    const raw = $('gridH').value;
-    if (raw === '' || raw == null) {
-      state.sizeH = 0;
+    $('gridWVal').textContent = String(w);
+    if (state.sizeH) {
+      state.sizeH = clampInt($('gridH').value, 8, 200, state.sizeH);
+      $('gridHVal').textContent = String(state.sizeH);
     } else {
-      const h = clampInt(raw, 8, 200, 0);
-      state.sizeH = h;
-      if (h) $('gridH').value = String(h);
+      $('gridHVal').textContent = '自动';
     }
+  }
+
+  function setAutoH(on) {
+    const btn = $('btnAutoH');
+    if (on) {
+      state.sizeH = 0;
+      btn.classList.add('on');
+      btn.setAttribute('aria-pressed', 'true');
+      $('gridHVal').textContent = '自动';
+    } else {
+      state.sizeH = autoHeight();
+      $('gridH').value = String(state.sizeH);
+      btn.classList.remove('on');
+      btn.setAttribute('aria-pressed', 'false');
+      $('gridHVal').textContent = String(state.sizeH);
+    }
+  }
+
+  function applyViewTransform() {
+    $('view').style.transform = `translate(${viewPan.x}px, ${viewPan.y}px) scale(${viewPan.scale})`;
+  }
+
+  function fitScale() {
+    const stage = $('stage');
+    const view = $('view');
+    const pad = 8;
+    const sw = Math.max(1, stage.clientWidth - pad);
+    const sh = Math.max(1, stage.clientHeight - pad);
+    if (!view.width || !view.height) return 1;
+    return Math.min(sw / view.width, sh / view.height);
+  }
+
+  function fitView() {
+    const stage = $('stage');
+    const view = $('view');
+    if (!view.width || !view.height) return;
+    const s = fitScale();
+    viewPan.scale = s;
+    viewPan.x = (stage.clientWidth - view.width * s) / 2;
+    viewPan.y = (stage.clientHeight - view.height * s) / 2;
+    viewPan.user = false;
+    applyViewTransform();
+  }
+
+  function zoomAt(px, py, next) {
+    const min = fitScale() * 0.85;
+    const max = Math.max(6, fitScale() * 14);
+    const scale = Math.max(min, Math.min(max, next));
+    const cx = (px - viewPan.x) / viewPan.scale;
+    const cy = (py - viewPan.y) / viewPan.scale;
+    viewPan.scale = scale;
+    viewPan.x = px - cx * scale;
+    viewPan.y = py - cy * scale;
+    viewPan.user = true;
+    applyViewTransform();
+  }
+
+  function stagePt(t, stage) {
+    const r = stage.getBoundingClientRect();
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+
+  function bindViewZoom() {
+    const stage = $('stage');
+    let gesture = null;
+    let lastTap = 0;
+    let tapPt = null;
+
+    stage.addEventListener('touchstart', (e) => {
+      if (!state.grid) return;
+      if (e.touches.length === 2) {
+        const a = stagePt(e.touches[0], stage);
+        const b = stagePt(e.touches[1], stage);
+        gesture = {
+          kind: 'pinch',
+          dist: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+          mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+          scale: viewPan.scale,
+          x: viewPan.x,
+          y: viewPan.y,
+        };
+        lastTap = 0;
+      } else if (e.touches.length === 1) {
+        const a = stagePt(e.touches[0], stage);
+        gesture = { kind: 'pan', x: a.x, y: a.y, ox: viewPan.x, oy: viewPan.y, moved: false };
+        tapPt = a;
+      }
+    }, { passive: true });
+
+    stage.addEventListener('touchmove', (e) => {
+      if (!gesture || !state.grid) return;
+      e.preventDefault();
+      if (gesture.kind === 'pinch' && e.touches.length >= 2) {
+        const a = stagePt(e.touches[0], stage);
+        const b = stagePt(e.touches[1], stage);
+        const dist = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const min = fitScale() * 0.85;
+        const max = Math.max(6, fitScale() * 14);
+        const scale = Math.max(min, Math.min(max, gesture.scale * (dist / gesture.dist)));
+        const cx = (gesture.mid.x - gesture.x) / gesture.scale;
+        const cy = (gesture.mid.y - gesture.y) / gesture.scale;
+        viewPan.scale = scale;
+        viewPan.x = mid.x - cx * scale;
+        viewPan.y = mid.y - cy * scale;
+        viewPan.user = true;
+        applyViewTransform();
+      } else if (gesture.kind === 'pan' && e.touches.length === 1) {
+        const a = stagePt(e.touches[0], stage);
+        const dx = a.x - gesture.x;
+        const dy = a.y - gesture.y;
+        if (Math.abs(dx) + Math.abs(dy) > 8) gesture.moved = true;
+        viewPan.x = gesture.ox + dx;
+        viewPan.y = gesture.oy + dy;
+        viewPan.user = true;
+        applyViewTransform();
+      }
+    }, { passive: false });
+
+    stage.addEventListener('touchend', (e) => {
+      if (!state.grid) { gesture = null; return; }
+      if (e.touches.length === 1) {
+        const a = stagePt(e.touches[0], stage);
+        gesture = { kind: 'pan', x: a.x, y: a.y, ox: viewPan.x, oy: viewPan.y, moved: true };
+        return;
+      }
+      if (e.touches.length === 0) {
+        const wasPan = gesture && gesture.kind === 'pan' && !gesture.moved;
+        gesture = null;
+        if (!wasPan || !tapPt) return;
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          if (viewPan.scale > fitScale() * 1.12) fitView();
+          else zoomAt(tapPt.x, tapPt.y, fitScale() * 3);
+          lastTap = 0;
+        } else {
+          lastTap = now;
+        }
+      }
+    }, { passive: true });
+
+    stage.addEventListener('touchcancel', () => { gesture = null; });
+
+    let mouse = null;
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0 || !state.grid) return;
+      mouse = { x: e.clientX, y: e.clientY, ox: viewPan.x, oy: viewPan.y };
+      stage.classList.add('grabbing');
+      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!mouse) return;
+      viewPan.x = mouse.ox + (e.clientX - mouse.x);
+      viewPan.y = mouse.oy + (e.clientY - mouse.y);
+      viewPan.user = true;
+      applyViewTransform();
+    });
+    const endMouse = () => {
+      mouse = null;
+      stage.classList.remove('grabbing');
+    };
+    stage.addEventListener('pointerup', endMouse);
+    stage.addEventListener('pointercancel', endMouse);
+
+    stage.addEventListener('wheel', (e) => {
+      if (!state.grid) return;
+      e.preventDefault();
+      const p = stagePt(e, stage);
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      zoomAt(p.x, p.y, viewPan.scale * factor);
+    }, { passive: false });
   }
 
   function autoHeight() {
@@ -176,12 +346,22 @@
     $('btnCrop').addEventListener('click', openCrop);
     $('cropCancel').addEventListener('click', closeCrop);
     $('cropDone').addEventListener('click', commitCrop);
-    ['change', 'blur'].forEach((ev) => {
-      $('gridW').addEventListener(ev, () => { readGrid(); queue(); });
-      $('gridH').addEventListener(ev, () => { readGrid(); queue(); });
+    $('btnAutoH').addEventListener('click', () => {
+      setAutoH(!!state.sizeH);
+      queue();
     });
-    $('gridW').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.target.blur(); } });
-    $('gridH').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.target.blur(); } });
+    $('gridW').addEventListener('input', () => {
+      state.size = clampInt($('gridW').value, 8, 200, 32);
+      $('gridWVal').textContent = String(state.size);
+      queue();
+    });
+    $('gridH').addEventListener('input', () => {
+      state.sizeH = clampInt($('gridH').value, 8, 200, 32);
+      $('btnAutoH').classList.remove('on');
+      $('btnAutoH').setAttribute('aria-pressed', 'false');
+      $('gridHVal').textContent = String(state.sizeH);
+      queue();
+    });
     $('contrast').addEventListener('input', () => {
       state.contrast = Number($('contrast').value) / 100;
       $('conVal').textContent = state.contrast.toFixed(2);
@@ -212,6 +392,7 @@
       if (f) loadFile(f);
     });
     bindCropPointer();
+    bindViewZoom();
   }
 
   async function onFile(e) {
@@ -242,7 +423,10 @@
       state.cropRatio = 'orig';
       cropDraft = null;
       state.sizeH = 0;
-      $('gridH').value = '';
+      $('btnAutoH').classList.add('on');
+      $('btnAutoH').setAttribute('aria-pressed', 'true');
+      $('gridHVal').textContent = '自动';
+      viewPan.user = false;
       $('stage').classList.add('has-img');
       $('btnSave').disabled = false;
       $('btnShare').disabled = false;
@@ -485,15 +669,15 @@
 
   function paintView() {
     if (!state.grid) return;
-    const stage = $('stage');
     const view = $('view');
-    const maxW = Math.max(160, stage.clientWidth - 8);
-    const fit = Math.floor(maxW / state.w);
-    const cell = state.labels ? Math.max(22, Math.min(36, fit || 22)) : Math.max(4, fit || 8);
+    const cell = state.labels ? 28 : 10;
     const chart = drawPattern(cell, state.labels, false);
+    const keep = viewPan.user && view.width === chart.width && view.height === chart.height;
     view.width = chart.width;
     view.height = chart.height;
     view.getContext('2d').drawImage(chart, 0, 0);
+    if (keep) applyViewTransform();
+    else fitView();
   }
 
   async function render() {
@@ -513,7 +697,10 @@
       const prep = drawPrep(state.source, 1400);
       const tw = state.size;
       const th = autoHeight();
-      if (!state.sizeH) $('gridH').placeholder = String(th);
+      if (!state.sizeH) {
+        $('gridH').value = String(th);
+        $('gridHVal').textContent = '自动';
+      }
       const small = downsample(prep, tw, th);
       adjust(small, state.contrast, state.saturate);
       state.grid = mapToMard(small, state.dither);
@@ -706,7 +893,10 @@
     cropDraft = null;
     cropDrag = null;
     $('cropLayer').classList.add('hidden');
-    if (!state.sizeH) $('gridH').placeholder = String(autoHeight());
+    if (!state.sizeH) {
+      $('gridH').value = String(autoHeight());
+      $('gridHVal').textContent = '自动';
+    }
     queue();
   }
 
@@ -824,7 +1014,10 @@
   }
 
   window.addEventListener('resize', () => {
-    if (state.grid) paintView();
+    if (state.grid) {
+      paintView();
+      fitView();
+    }
     if (!$('cropLayer').classList.contains('hidden')) paintCrop();
   });
 

@@ -27,19 +27,23 @@
       <div class="empty" id="empty">
         <div class="px-mark" aria-hidden="true"></div>
         <p>点下面「相册」或「拍照」</p>
-        <p class="hint">只用色卡里的颜色，格子上会标 A1、B12 这种色号</p>
+        <p class="hint">只用色卡里的颜色，格子上会标 A1、B12。图纸可双指缩放</p>
       </div>
     </div>
 
     <div class="panel">
       <div class="row size-row">
         <span class="lab">格子</span>
-        <div class="size-edit">
-          <label>宽<input id="gridW" type="number" min="8" max="200" value="32" inputmode="numeric" enterkeyhint="done" /></label>
-          <span class="times">×</span>
-          <label>高<input id="gridH" type="number" min="8" max="200" value="" placeholder="自动" inputmode="numeric" enterkeyhint="done" /></label>
-        </div>
+        <button type="button" class="tog on" id="btnAutoH" aria-pressed="true">高自动</button>
         <button type="button" class="tog" id="btnCrop">裁剪</button>
+      </div>
+      <div class="row sliders">
+        <label>宽 <span id="gridWVal">32</span>
+          <input id="gridW" type="range" min="8" max="200" value="32" />
+        </label>
+        <label>高 <span id="gridHVal">自动</span>
+          <input id="gridH" type="range" min="8" max="200" value="32" />
+        </label>
       </div>
       <div class="row sliders">
         <label>对比 <span id="conVal">1.10</span>

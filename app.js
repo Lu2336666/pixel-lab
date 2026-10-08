@@ -647,21 +647,39 @@
     }).join('');
   }
 
+  function exportCellSize() {
+    const w = Math.max(1, state.w);
+    const h = Math.max(1, state.h);
+    const maxSide = 4096;
+    let cell = Math.min(96, Math.floor(maxSide / Math.max(w, h)));
+    const areaOk = (c) => w * c * (h * c + Math.ceil(c * 14)) <= 16e6;
+    while (cell > 28 && !areaOk(cell)) cell -= 2;
+    return Math.max(28, cell);
+  }
+
   function drawPattern(cell, labels, withLegend) {
     const w = state.w;
     const h = state.h;
     const rows = withLegend ? usedCounts() : [];
-    const legendH = withLegend ? Math.ceil(rows.length / Math.max(1, Math.floor((w * cell) / 92))) * 28 + 36 : 0;
+    const ui = Math.max(1, cell / 32);
+    const colW = Math.max(92, Math.round(92 * ui));
+    const rowH = Math.max(28, Math.round(28 * ui));
+    const headH = Math.max(36, Math.round(36 * ui));
+    const legendH = withLegend && rows.length
+      ? Math.ceil(rows.length / Math.max(1, Math.floor((w * cell) / colW))) * rowH + headH
+      : 0;
     const c = document.createElement('canvas');
     c.width = Math.max(1, w * cell);
     c.height = Math.max(1, h * cell + legendH);
     const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#111318';
     ctx.fillRect(0, 0, c.width, c.height);
-    const fontPx = Math.max(8, Math.floor(cell * (state.grid && MARD[0] ? 0.34 : 0.34)));
+    const fontPx = Math.max(10, Math.round(cell * 0.4));
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `700 ${fontPx}px "PingFang SC","Helvetica Neue",sans-serif`;
+    const line = cell >= 48 ? 2 : 1;
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const p = MARD[state.grid[y * w + x]];
@@ -669,35 +687,37 @@
         const py = y * cell;
         ctx.fillStyle = p.hex;
         ctx.fillRect(px, py, cell, cell);
-        ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(px + 0.5, py + 0.5, cell - 1, cell - 1);
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        ctx.lineWidth = line;
+        ctx.strokeRect(px + line / 2, py + line / 2, cell - line, cell - line);
         if (labels && cell >= 16) {
           ctx.fillStyle = p.lum > 150 ? '#1a140c' : '#ffffff';
-          ctx.fillText(p.code, px + cell / 2, py + cell / 2 + 0.5);
+          ctx.fillText(p.code, Math.round(px + cell / 2), Math.round(py + cell / 2));
         }
       }
     }
     if (withLegend && rows.length) {
+      const pad = Math.round(10 * ui);
+      const sw = Math.round(18 * ui);
       ctx.fillStyle = '#171922';
       ctx.fillRect(0, h * cell, c.width, legendH);
       ctx.fillStyle = '#c9c4b8';
-      ctx.font = '700 14px "PingFang SC",sans-serif';
+      ctx.font = `700 ${Math.round(14 * ui)}px "PingFang SC",sans-serif`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText(`MARD 221  ·  ${w}×${h}  ·  ${rows.length} 色  ·  ${w * h} 颗`, 10, h * cell + 8);
-      const colW = 92;
+      ctx.fillText(`MARD 221  ·  ${w}×${h}  ·  ${rows.length} 色  ·  ${w * h} 颗`, pad, h * cell + Math.round(8 * ui));
       const cols = Math.max(1, Math.floor(c.width / colW));
       rows.forEach((row, i) => {
-        const cx = (i % cols) * colW + 10;
-        const cy = h * cell + 30 + Math.floor(i / cols) * 26;
+        const cx = (i % cols) * colW + pad;
+        const cy = h * cell + Math.round(30 * ui) + Math.floor(i / cols) * rowH;
         ctx.fillStyle = row.color.hex;
-        ctx.fillRect(cx, cy, 18, 18);
+        ctx.fillRect(cx, cy, sw, sw);
         ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.strokeRect(cx + 0.5, cy + 0.5, 17, 17);
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx + 0.5, cy + 0.5, sw - 1, sw - 1);
         ctx.fillStyle = '#f4f1ea';
-        ctx.font = '600 12px "PingFang SC",sans-serif';
-        ctx.fillText(`${row.color.code}  ${row.n}`, cx + 24, cy + 2);
+        ctx.font = `600 ${Math.round(12 * ui)}px "PingFang SC",sans-serif`;
+        ctx.fillText(`${row.color.code}  ${row.n}`, cx + sw + Math.round(6 * ui), cy + Math.round(2 * ui));
       });
     }
     return c;
@@ -755,7 +775,15 @@
 
   function exportCanvas() {
     if (!state.grid) return null;
-    return drawPattern(32, true, true);
+    let cell = exportCellSize();
+    for (let i = 0; i < 5; i++) {
+      try {
+        const c = drawPattern(cell, true, true);
+        if (c.width > 0 && c.height > 0) return c;
+      } catch (_) {}
+      cell = Math.max(24, Math.floor(cell * 0.7));
+    }
+    return drawPattern(28, true, true);
   }
 
   function isIOS() {

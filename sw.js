@@ -1,4 +1,4 @@
-const CACHE = 'pixel-lab-5';
+const CACHE = 'pixel-lab-6';
 const FILES = [
   './',
   './index.html',

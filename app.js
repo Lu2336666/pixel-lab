@@ -629,7 +629,19 @@
       counts.set(k, (counts.get(k) || 0) + 1);
     }
     return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => {
+        const ca = MARD[a[0]].code;
+        const cb = MARD[b[0]].code;
+        const pa = /^([A-Z]+)(\d+)$/i.exec(ca);
+        const pb = /^([A-Z]+)(\d+)$/i.exec(cb);
+        if (pa && pb) {
+          const la = pa[1].toUpperCase();
+          const lb = pb[1].toUpperCase();
+          if (la !== lb) return la < lb ? -1 : 1;
+          return Number(pa[2]) - Number(pb[2]);
+        }
+        return ca < cb ? -1 : ca > cb ? 1 : 0;
+      })
       .map(([k, n]) => ({ color: MARD[k], n }));
   }
 
